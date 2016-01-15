@@ -1,0 +1,100 @@
+<?php
+
+$bad_files = array();
+$good_files = array();
+$all_errors = array();
+
+
+foreach (glob("../../../resources/fonts/*.svg") as $filename) {
+	//$filename = "fonts/SymantecSansMed.svg";	//good guy
+	//$filename = "fonts/Gibson_Bold.svg";		//bad guy
+	#echo $filename . "<br>";
+
+	libxml_use_internal_errors(true);
+
+	$str = file_get_contents($filename);
+	$sxe = simplexml_load_string($str);
+	$errors = libxml_get_errors();
+	#echo var_dump($errors);
+	$num_of_errors = 0;
+	$num_of_errors = sizeof($errors);
+
+	//a value to be set to truthy if a regex of serious errors matches
+	$xmlParseCharRefErr = 0;
+	//human readable content of the error object
+	$messages = array();
+
+	if ($num_of_errors > 0){
+		//look at the entire returned error object
+		#echo var_dump($errors);
+
+		for($c = 0; $c < $num_of_errors; $c++){
+
+			array_unshift($messages, $errors[$c]->message);
+			array_unshift($all_errors, $errors[$c]->message);
+
+			//error causing the largest quantity of XML issues is "xmlParseCharRef: invalid xmlChar value [position info eg, 26]" 
+			//PHP reports other errors which do not cause XML rendering issues
+			//these should not cause the font `$filename` to be inserted into the array of problem fonts
+			if(preg_match("/xmlParseCharRef/i", $errors[$c]->message)){
+
+				$xmlParseCharRefErr = 1;
+
+			}
+
+		}
+
+	}
+
+	//there are a lot of duplicates
+	#$messages = array_unique($messages);
+	#echo var_dump($messages);
+	if ($num_of_errors != 0 && $xmlParseCharRefErr == 1){
+		echo $filname . "<br>";
+		array_push($bad_files, array(
+			"filename"	=> $filename,
+			"size"		=> filesize($filename),
+			"messages"	=> $messages,
+			"error"		=> "xmlParseCharRef"
+			)
+		);
+		   
+	}else{
+	    array_push($good_files, array(
+			"filename"	=> $filename,
+			"size"		=> filesize($filename),
+			"messages"	=> $messages
+			)
+	    );
+	}
+	//errors are stored in the buffer - remove them
+	libxml_clear_errors();
+
+}
+
+//echo "good files ";
+//echo var_dump($good_files);
+
+
+//echo "<hr/>";
+echo "bad files <br>";
+foreach($bad_files as $key => $val){
+
+	$filename	= $val["filename"];
+	$error 		= $val["error"];
+	echo "<span><a href='$filename'target='_blank'>$filename</a><</span>span>Error: $error</span><br/>";
+
+}
+/*
+foreach($all_errors as $val){
+	echo "<div>$val</div>";
+}
+*/
+?>
+
+<style>
+*{
+	font-family: "menlo", "consolas", monospace;
+	font-size: 11px;
+}
+</style>
